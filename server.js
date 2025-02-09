@@ -5,7 +5,6 @@ import { google } from "googleapis";
 import fs from "fs";
 import dotenv from "dotenv";
 import path from "path";
-import {metadata} from "./metadata.js";
 
 dotenv.config();
 
@@ -24,10 +23,10 @@ const drive = google.drive({ version: "v3", auth });
 // Multer Storage (Temporary)
 const upload = multer({ dest: "uploads/" });
 
-// Google Drive Folder ID (Set in .env)
+// Google Drive Folder ID
 const FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
 
-// Local metadata file
+// Metadata file path
 const METADATA_FILE = "metadata.json";
 
 // Ensure metadata.json exists
@@ -35,7 +34,7 @@ if (!fs.existsSync(METADATA_FILE)) {
   fs.writeFileSync(METADATA_FILE, JSON.stringify([], null, 2));
 }
 
-// Function to upload a file to Google Drive
+// 📌 Function to upload a file to Google Drive
 async function uploadToDrive(filePath, fileName, mimeType) {
   const fileMetadata = { name: fileName, parents: [FOLDER_ID] };
   const media = { mimeType, body: fs.createReadStream(filePath) };
@@ -71,10 +70,14 @@ app.post("/upload", upload.fields([{ name: "pdf" }, { name: "image" }]), async (
     const pdfResponse = await uploadToDrive(pdfPath, pdfFileName, "application/pdf");
     const imageResponse = await uploadToDrive(imagePath, imageFileName, "image/jpeg");
 
-    // Load existing metadata
-    const metadata = JSON.parse(fs.readFileSync(METADATA_FILE, "utf8"));
+    // Read metadata.json before updating
+    let metadata = [];
+    if (fs.existsSync(METADATA_FILE)) {
+      const rawData = fs.readFileSync(METADATA_FILE, "utf8");
+      metadata = rawData ? JSON.parse(rawData) : [];
+    }
 
-    // Add new book entry
+    // 📌 Add new book entry
     const newBook = {
       title,
       author,
@@ -86,10 +89,15 @@ app.post("/upload", upload.fields([{ name: "pdf" }, { name: "image" }]), async (
 
     metadata.push(newBook);
 
-    // Save updated metadata.json locally
-    fs.writeFileSync(METADATA_FILE, JSON.stringify(metadata, null, 2));
+    // 📌 Write updated metadata.json asynchronously
+    fs.writeFile(METADATA_FILE, JSON.stringify(metadata, null, 2), (err) => {
+      if (err) {
+        console.error("Failed to update metadata.json:", err);
+        return res.status(500).json({ error: "Failed to update metadata.json" });
+      }
+    });
 
-    // Upload metadata.json to Google Drive
+    // ✅ Upload updated metadata.json to Google Drive
     const metadataResponse = await uploadToDrive(METADATA_FILE, "metadata.json", "application/json");
 
     res.json({ message: "Upload successful!", metadataUrl: metadataResponse.webContentLink });
@@ -100,22 +108,27 @@ app.post("/upload", upload.fields([{ name: "pdf" }, { name: "image" }]), async (
 
 // 📌 Route to Get All Books from metadata.json
 app.get("/api/books", (req, res) => {
-    try {
-      res.json(metadata); // ✅ Send books as JSON response
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch books" });
-    }
-  });
+  try {
+    const updatedMetadata = fs.existsSync(METADATA_FILE)
+      ? JSON.parse(fs.readFileSync(METADATA_FILE, "utf8"))
+      : [];
+
+    res.json(updatedMetadata);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch books" });
+  }
+});
 
 // 📌 Route to Serve metadata.js Dynamically
 app.get("/metadata.js", (req, res) => {
   try {
-    const metadata = JSON.parse(fs.readFileSync(METADATA_FILE, "utf8"));
+    const metadata = fs.existsSync(METADATA_FILE)
+      ? JSON.parse(fs.readFileSync(METADATA_FILE, "utf8"))
+      : [];
 
     // Convert metadata to a JavaScript module format
     const metadataJS = `export const data = ${JSON.stringify(metadata, null, 2)};`;
 
-    // Set response headers
     res.setHeader("Content-Type", "application/javascript");
     res.send(metadataJS);
   } catch (error) {
