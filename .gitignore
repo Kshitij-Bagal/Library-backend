@@ -1,0 +1,5 @@
+# Ignore Google Service Account credentials
+credentials.json
+
+
+node_modules/
