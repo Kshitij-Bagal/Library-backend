@@ -29,9 +29,27 @@ const FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
 // Metadata file path
 const METADATA_FILE = "metadata.json";
 
-// Ensure metadata.json exists
+// 📌 Ensure `metadata.json` exists with predefined sample books
 if (!fs.existsSync(METADATA_FILE)) {
-  fs.writeFileSync(METADATA_FILE, JSON.stringify([], null, 2));
+  const sampleBooks = [
+    {
+      title: "Sample Book 1",
+      author: "Author 1",
+      description: "This is a sample book",
+      pdfUrl: "https://example.com/sample1.pdf",
+      imageUrl: "https://example.com/sample1.jpg",
+      uploadDate: new Date().toISOString(),
+    },
+    {
+      title: "Sample Book 2",
+      author: "Author 2",
+      description: "This is another sample book",
+      pdfUrl: "https://example.com/sample2.pdf",
+      imageUrl: "https://example.com/sample2.jpg",
+      uploadDate: new Date().toISOString(),
+    },
+  ];
+  fs.writeFileSync(METADATA_FILE, JSON.stringify(sampleBooks, null, 2));
 }
 
 // 📌 Function to upload a file to Google Drive
@@ -70,7 +88,7 @@ app.post("/upload", upload.fields([{ name: "pdf" }, { name: "image" }]), async (
     const pdfResponse = await uploadToDrive(pdfPath, pdfFileName, "application/pdf");
     const imageResponse = await uploadToDrive(imagePath, imageFileName, "image/jpeg");
 
-    // Read metadata.json before updating
+    // 📌 Read metadata.json before updating
     let metadata = [];
     if (fs.existsSync(METADATA_FILE)) {
       const rawData = fs.readFileSync(METADATA_FILE, "utf8");
@@ -89,13 +107,8 @@ app.post("/upload", upload.fields([{ name: "pdf" }, { name: "image" }]), async (
 
     metadata.push(newBook);
 
-    // 📌 Write updated metadata.json asynchronously
-    fs.writeFile(METADATA_FILE, JSON.stringify(metadata, null, 2), (err) => {
-      if (err) {
-        console.error("Failed to update metadata.json:", err);
-        return res.status(500).json({ error: "Failed to update metadata.json" });
-      }
-    });
+    // 📌 Write updated metadata.json
+    fs.writeFileSync(METADATA_FILE, JSON.stringify(metadata, null, 2));
 
     // ✅ Upload updated metadata.json to Google Drive
     const metadataResponse = await uploadToDrive(METADATA_FILE, "metadata.json", "application/json");
@@ -109,10 +122,11 @@ app.post("/upload", upload.fields([{ name: "pdf" }, { name: "image" }]), async (
 // 📌 Route to Get All Books from metadata.json
 app.get("/api/books", (req, res) => {
   try {
-    const updatedMetadata = fs.existsSync(METADATA_FILE)
-      ? JSON.parse(fs.readFileSync(METADATA_FILE, "utf8"))
-      : [];
+    if (!fs.existsSync(METADATA_FILE)) {
+      return res.json([]); // Return empty array if file doesn't exist
+    }
 
+    const updatedMetadata = JSON.parse(fs.readFileSync(METADATA_FILE, "utf8"));
     res.json(updatedMetadata);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch books" });
@@ -122,11 +136,11 @@ app.get("/api/books", (req, res) => {
 // 📌 Route to Serve metadata.js Dynamically
 app.get("/metadata.js", (req, res) => {
   try {
-    const metadata = fs.existsSync(METADATA_FILE)
-      ? JSON.parse(fs.readFileSync(METADATA_FILE, "utf8"))
-      : [];
+    if (!fs.existsSync(METADATA_FILE)) {
+      return res.send("export const data = [];");
+    }
 
-    // Convert metadata to a JavaScript module format
+    const metadata = JSON.parse(fs.readFileSync(METADATA_FILE, "utf8"));
     const metadataJS = `export const data = ${JSON.stringify(metadata, null, 2)};`;
 
     res.setHeader("Content-Type", "application/javascript");
