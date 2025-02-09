@@ -5,6 +5,7 @@ import { google } from "googleapis";
 import fs from "fs";
 import dotenv from "dotenv";
 import path from "path";
+import {metadata} from "./metadata.js";
 
 dotenv.config();
 
@@ -98,14 +99,13 @@ app.post("/upload", upload.fields([{ name: "pdf" }, { name: "image" }]), async (
 });
 
 // 📌 Route to Get All Books from metadata.json
-app.get("/books", (req, res) => {
-  try {
-    const metadata = JSON.parse(fs.readFileSync(METADATA_FILE, "utf8"));
-    res.json(metadata);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
+app.get("/api/books", (req, res) => {
+    try {
+      res.json(metadata); // ✅ Send books as JSON response
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch books" });
+    }
+  });
 
 // 📌 Route to Serve metadata.js Dynamically
 app.get("/metadata.js", (req, res) => {
