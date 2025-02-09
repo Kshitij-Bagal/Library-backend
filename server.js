@@ -97,13 +97,29 @@ app.post("/upload", upload.fields([{ name: "pdf" }, { name: "image" }]), async (
   }
 });
 
-//  Route to Get All Books from metadata.json
+// 📌 Route to Get All Books from metadata.json
 app.get("/books", (req, res) => {
   try {
     const metadata = JSON.parse(fs.readFileSync(METADATA_FILE, "utf8"));
     res.json(metadata);
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// 📌 Route to Serve metadata.js Dynamically
+app.get("/metadata.js", (req, res) => {
+  try {
+    const metadata = JSON.parse(fs.readFileSync(METADATA_FILE, "utf8"));
+
+    // Convert metadata to a JavaScript module format
+    const metadataJS = `export const data = ${JSON.stringify(metadata, null, 2)};`;
+
+    // Set response headers
+    res.setHeader("Content-Type", "application/javascript");
+    res.send(metadataJS);
+  } catch (error) {
+    res.status(500).send(`console.error("Error loading metadata: ${error.message}")`);
   }
 });
 
